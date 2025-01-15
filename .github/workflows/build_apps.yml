@@ -1,0 +1,28 @@
+name: Build all apps
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    container:
+      image: wirepas/sdk-builder:v1.3
+      options: --user 0
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Accept license 
+      run: touch .license_accepted
+    - name: Create dummy key file
+      run: |
+        touch custom_bootloader_keys.ini
+        echo "[key:default]" >> custom_bootloader_keys.ini
+        echo "auth = 01 02 03 04 05 06 07 08 01 02 03 04 05 06 07 08" >> custom_bootloader_keys.ini
+        echo "encrypt = 01 02 03 04 05 06 07 08 01 02 03 04 05 06 07 08" >> custom_bootloader_keys.ini
+    - name: Build all apps
+      run: ./tools/sdk_builder.py --app_only

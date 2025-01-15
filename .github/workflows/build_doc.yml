@@ -1,0 +1,65 @@
+name: Build and deploy doc
+
+on:
+  push:
+    branches: [ master ]
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version that will be used in version selector'
+        required: true
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    container:
+      image: wirepas/sdk-builder:latest
+      options: --user 0
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Generate doc
+      run: make doxygen target_board=pca10040
+    - name: Set folder for master
+      if: ${{ github.event_name == 'push' }}
+      run: echo "FOLDER=master" >> $GITHUB_ENV
+    - name: Set folder for release
+      if: ${{ github.event_name == 'release' }}
+      run: echo "FOLDER=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+    - name: Set folder for manual triggering
+      if: ${{ github.event_name == 'workflow_dispatch' }}
+      run: echo "FOLDER=${{ github.event.inputs.version_name }}" >> $GITHUB_ENV
+    - name: Deploy doc
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./build/html
+        destination_dir: ${{ env.FOLDER }}
+    - name: Checkout gh-pages branch
+      if: ${{ github.event_name != 'push' }}
+      uses: actions/checkout@v2
+      with:
+        ref: 'gh-pages'
+        path: 'gh-pages'
+    - name: Add new version
+      if: ${{ github.event_name != 'push' }}
+      run: sed -i "/^'latest'/i '${{ env.FOLDER }}'," gh-pages/select_version.js
+    - name: Test
+      if: ${{ github.event_name != 'push' }}
+      run: cat gh-pages/select_version.js
+    - name: Publish change
+      if: ${{ github.event_name != 'push' }}
+      uses: EndBug/add-and-commit@v5
+      with:
+        add: select_version.js
+        author_name: GH Action build_doc
+        author_email: invalid@invalid.com
+        branch: gh-pages
+        cwd: 'gh-pages'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
